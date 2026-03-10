@@ -1,15 +1,20 @@
 import streamlit as st
 import pandas as pd
 import pickle
+
 import os
 
 from groq import Groq
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
-
+from dotenv import load_dotenv
 # -------------------------------------
 # Load Embedding + Vector DB
 # -------------------------------------
+load_dotenv()
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
+)
 
 embedding = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
