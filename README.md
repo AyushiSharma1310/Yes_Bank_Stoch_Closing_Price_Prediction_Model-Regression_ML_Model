@@ -1,3 +1,5 @@
-# Yes_Bank_Stoch_Closing_Price_Prediction_Model-Regression_ML_Model:
+# Yes_Bank_Stock_Closing_Price_Prediction_Model-Regression_ML_Model:
 
-Add the attached csv file for dataset of the model.
+- Attached csv file of dataset for training and testing of the model: data_YesBank_StockPrices.csv
+- Find the working model app deployed on Streamlit: https://yesbank-sp-pred-regmodel.streamlit.app/
+
