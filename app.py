@@ -7,13 +7,11 @@ import os
 from groq import Groq
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from dotenv import load_dotenv
 # -------------------------------------
 # Load Embedding + Vector DB
 # -------------------------------------
-load_dotenv()
 client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
+    api_key=st.secrets("GROQ_API_KEY")
 )
 
 embedding = HuggingFaceEmbeddings(
