@@ -55,6 +55,7 @@ if st.sidebar.button("Clear History"):
 
 if st.session_state.prediction_history:
     history_df = pd.DataFrame(st.session_state.prediction_history)
+    history_df.index = range(1, len(history_df) + 1)
     st.sidebar.dataframe(history_df, use_container_width=True)
 else:
     st.sidebar.write("No predictions yet.")
