@@ -11,7 +11,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 # Load Embedding + Vector DB
 # -------------------------------------
 client = Groq(
-    api_key=st.secrets("GROQ_API_KEY")
+    api_key=st.secrets["GROQ_API_KEY"]
 )
 
 embedding = HuggingFaceEmbeddings(
