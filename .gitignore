@@ -20,4 +20,4 @@ env/
 Thumbs.db
 
 # Secrets
-.streamlit/secrets.toml
+app/.streamlit/secrets.toml
