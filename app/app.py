@@ -34,14 +34,14 @@ else:
 # Load Model and Scaler
 # -------------------------------------
 
-model_path = os.path.join("..", "models", "Yes_bank_stock_price_prediction_regression_model.pkl")
-scaler_path = os.path.join("..", "models", "scaler.pkl")
+import os
+import joblib
 
-with open(model_path, "rb") as f:
-    loaded_model = pickle.load(f)
+MODEL_PATH = os.path.join("..", "models", "Yes_bank_stock_price_prediction_regression_model.pkl")
+SCALER_PATH = os.path.join("..", "models", "scaler.pkl")
 
-with open(scaler_path, "rb") as f:
-    scaler = pickle.load(f)
+loaded_model = joblib.load(MODEL_PATH)
+scaler = joblib.load(SCALER_PATH)
 
 # -------------------------------------
 # Session State for History

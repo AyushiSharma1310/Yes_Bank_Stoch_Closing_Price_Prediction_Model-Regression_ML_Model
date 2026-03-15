@@ -10,7 +10,8 @@ venv/
 env/
 
 # Jupyter notebook checkpoints
-.ipynb_checkpoints/
+*.ipynb_checkpoints/
+__pycache__/
 
 # OS files
 .DS_Store
