@@ -9,9 +9,6 @@ __pycache__/
 venv/
 env/
 
-# Model files
-*.pkl
-
 # Jupyter notebook checkpoints
 .ipynb_checkpoints/
 
