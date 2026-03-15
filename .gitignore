@@ -21,3 +21,4 @@ Thumbs.db
 
 # Secrets
 app/.streamlit/secrets.toml
+.streamlit/secrets.toml
