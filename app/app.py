@@ -1,3 +1,4 @@
+import joblib
 import streamlit as st
 import pandas as pd
 import pickle
@@ -34,15 +35,28 @@ else:
 # Load Model and Scaler
 # -------------------------------------
 
-import os
+# -------------------------------------
+# Load Model and Scaler (Cached)
+# -------------------------------------
+
+import streamlit as st
 import joblib
+import os
 
-MODEL_PATH = os.path.join("..", "models", "Yes_bank_stock_price_prediction_regression_model.pkl")
-SCALER_PATH = os.path.join("..", "models", "scaler.pkl")
+@st.cache_resource
+def load_artifacts():
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    model_path = os.path.join(BASE_DIR, "models", "Yes_bank_stock_price_prediction_regression_model.pkl")
+    scaler_path = os.path.join(BASE_DIR, "models", "scaler.pkl")
 
-loaded_model = joblib.load(MODEL_PATH)
-scaler = joblib.load(SCALER_PATH)
+    model = joblib.load(model_path)
+    scaler = joblib.load(scaler_path)
 
+    return model, scaler
+
+
+loaded_model, scaler = load_artifacts()
 # -------------------------------------
 # Session State for History
 # -------------------------------------
