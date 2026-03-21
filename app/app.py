@@ -1,5 +1,3 @@
-from email.mime import message
-
 import joblib
 import streamlit as st
 import pandas as pd
@@ -11,167 +9,289 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # -------------------------------------
-# Load Embedding + Vector DB
+# 🎨 CSS (FIXED)
 # -------------------------------------
 
-client = Groq(
-    api_key=st.secrets["GROQ_API_KEY"]
-)
+st.markdown("""
+<style>
 
-embedding = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
+/* ================================
+   📦 MAIN CHAT WRAPPER (TAB 3 ONLY)
+================================ */
+.chat-wrapper {
+    position: relative;
+    height: 100%;
+    padding-bottom: 80px;  /* space for input */
+}
+
+/* ================================
+   💬 CHAT INPUT FIXED AT BOTTOM
+================================ */
+[data-testid="stChatInput"] {
+    position: fixed;
+    bottom: 0;
+    left: calc(var(--sidebar-width, 0px) + 1rem);
+    right: 1rem;
+    z-index: 999;
+    background: #0e1117;
+    margin-left: 400px !important;
+    padding: 10px 0;
+}
+
+/* ================================
+   📏 HANDLE SIDEBAR COLLAPSE
+================================ */
+
+/* When sidebar collapsed */
+section[data-testid="stSidebar"][aria-expanded="false"] ~ div [data-testid="stChatInput"] {
+    left: 1rem !important;
+}
+
+/* ================================
+   📱 RIGHT COLUMN ADJUSTMENT (IMPORTANT)
+================================ */
+
+/* If you are using st.columns */
+div[data-testid="column"] [data-testid="stChatInput"] {
+    left: auto !important;
+    right: 1rem !important;
+}
+
+/* ================================
+   🧠 CHAT MESSAGE AREA SCROLLABLE
+================================ */
+.chat-wrapper > div:first-child {
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    padding-bottom: 20px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+
+# -------------------------------------
+# 🔐 SESSION STATE INIT
+# -------------------------------------
+
+if "prediction_history" not in st.session_state:
+    st.session_state.prediction_history = []
+
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = {}
+
+# -------------------------------------
+# 🤖 GROQ + VECTOR DB
+# -------------------------------------
+
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+
+embedding = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 documents = [
     "Yes Bank stock dataset contains OHLC prices.",
     "The regression model predicts Close price using Open High Low.",
-    "Higher High values usually increase predicted Close price."
+    "Higher High values usually increase predicted Close price.",
 ]
+
 
 if not os.path.exists("stock_vector_db"):
     vector_db = FAISS.from_texts(documents, embedding)
     vector_db.save_local("stock_vector_db")
 else:
     vector_db = FAISS.load_local(
-        "stock_vector_db",
-        embedding,
-        allow_dangerous_deserialization=True
+        "stock_vector_db", embedding, allow_dangerous_deserialization=True
     )
 
 # -------------------------------------
-# AI Response Function
+# 🤖 AI FUNCTION
 # -------------------------------------
 
-def get_ai_response(user_input, prediction=None, features=None):
 
+def get_ai_response(user_input, prediction=None, features=None, chat_history=None):
+
+    # 🔍 RAG context
     docs = vector_db.similarity_search(user_input, k=2)
-    context = " ".join([doc.page_content for doc in docs])
+    rag_context = " ".join([doc.page_content for doc in docs])
 
-    model_context = f"""
-    Prediction: {prediction}
-    Features: {features}
-    """
+    # 🧠 Chat history (last 4 messages only)
+    history_context = ""
+    if chat_history:
+        for role, msg in chat_history[-4:]:
+            history_context += f"{role.upper()}: {msg}\n"
+
+    # 🎯 Strong structured prompt
+    final_prompt = f"""
+You are a Financial AI Assistant.
+
+STRICT RULES:
+- Always use the given prediction and input features
+- Do NOT give generic stock advice
+- Explain reasoning clearly using numbers
+- Keep answers concise but insightful
+
+----------------------------------------
+📊 Prediction Context:
+Predicted Close Price: {prediction}
+
+Input Features:
+{features}
+
+----------------------------------------
+📚 Knowledge Base:
+{rag_context}
+
+----------------------------------------
+💬 Conversation History:
+{history_context}
+
+----------------------------------------
+👤 User Question:
+{user_input}
+
+----------------------------------------
+💡 Answer:
+"""
 
     try:
         completion = client.chat.completions.create(
             model="llama-3.1-70b-versatile",
-            messages=[
-                {"role": "system", "content": "You are a financial AI assistant."},
-                {"role": "user", "content": context + "\n" + model_context + "\n" + user_input}
-            ]
+            messages=[{"role": "user", "content": final_prompt}],
+            temperature=0.3,
+            max_tokens=500,
         )
 
-    except Exception as e:
-        # fallback model
+    except Exception:
+        # 🔁 Fallback model
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": "You are a financial AI assistant."},
-                {"role": "user", "content": context + "\n" + model_context + "\n" + user_input}
-            ]
+            messages=[{"role": "user", "content": final_prompt}],
+            temperature=0.3,
+            max_tokens=500,
         )
 
     return completion.choices[0].message.content
+
+
 # -------------------------------------
-# Load Model and Scaler (Cached)
+# 📊 LOAD MODEL + DATA
 # -------------------------------------
 
-@st.cache_resource
+
+@st.cache_resource(show_spinner=False)
 def load_artifacts():
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-    model_path = os.path.join(BASE_DIR, "models", "Yes_bank_stock_price_prediction_regression_model.pkl")
-    scaler_path = os.path.join(BASE_DIR, "models", "scaler.pkl")
-
-    model = joblib.load(model_path)
-    scaler = joblib.load(scaler_path)
-
+    model = joblib.load(
+        os.path.join(
+            BASE_DIR, "models", "Yes_bank_stock_price_prediction_regression_model.pkl"
+        )
+    )
+    scaler = joblib.load(os.path.join(BASE_DIR, "models", "scaler.pkl"))
     return model, scaler
 
 
-loaded_model, scaler = load_artifacts()
+loader = st.empty()
 
-# -------------------------------------
-# Load Dataset for Visualization
-# -------------------------------------
+with loader.container():
+    st.markdown("## 🤖 Initializing AI Model...")
+    st.markdown("Please wait while we load everything 🚀")
+    st.image(
+        "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExbXV4cjkwMnJudHpja3BreXVzYzU1amQyMmh3aHU1ZzZxdndmaWpiYiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/YnkMcHgNIMW4Yfmjxr/giphy.gif"
+    )
+
+    loaded_model, scaler = load_artifacts()
+
+loader.empty()
+
 
 @st.cache_data
 def load_data():
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    data_path = os.path.join(BASE_DIR, "data", "data_YesBank_StockPrices.csv")
-
-    data = pd.read_csv(data_path)
-
+    data = pd.read_csv(os.path.join(BASE_DIR, "data", "data_YesBank_StockPrices.csv"))
     data["Date"] = pd.to_datetime(data["Date"], format="%b-%y", errors="coerce")
+    return data.sort_values("Date").dropna(subset=["Date"])
 
-    data = data.dropna(subset=["Date"])
-    data = data.sort_values("Date")
-
-    return data
 
 data = load_data()
 
 # -------------------------------------
-# Session State for History
+# 📜 SIDEBAR (Prediction History ONLY)
 # -------------------------------------
 
+st.sidebar.title("📜 Prediction History")
+
+# ✅ Ensure session state exists
 if "prediction_history" not in st.session_state:
     st.session_state.prediction_history = []
 
-# -------------------------------------
-# Sidebar
-# -------------------------------------
-
-st.sidebar.title("Prediction History")
-
+# ✅ Clear ONLY prediction history
 if st.sidebar.button("Clear History", key="clear_history_btn"):
     st.session_state.prediction_history = []
+    st.rerun()
+
+# -------------------------------------
+# 📊 Show Prediction History
+# -------------------------------------
 
 if st.session_state.prediction_history:
-    history_df = pd.DataFrame(st.session_state.prediction_history)
-    history_df.index = range(1, len(history_df) + 1)
-    st.sidebar.dataframe(history_df, use_container_width=True)
+
+    df = pd.DataFrame(st.session_state.prediction_history)
+
+    # ✅ Add user-friendly labels
+    df.insert(0, "ID", [f"Prediction-{i+1}" for i in range(len(df))])
+
+    st.sidebar.dataframe(df, use_container_width=True, hide_index=True)
+
 else:
     st.sidebar.write("No predictions yet.")
+# -------------------------------------
+# 🖥️ MAIN UI
+# -------------------------------------
+if "show_right_sidebar" not in st.session_state:
+    st.session_state.show_right_sidebar = False
+
+
+st.title("Yes-Bank Stock Closing Price Prediction App")
+tab1, tab2, tab3 = st.tabs(
+    ["📊 Dashboard", "🔮 Prediction", "🤖 Prediction AI Support"]
+)
 
 # -------------------------------------
-# Streamlit UI
+# 📊 TAB 1
 # -------------------------------------
-
-st.title("Yes Bank Stock Closing Price Predictor")
-tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🔮 Prediction", "🤖 AI Copilot"])
 
 with tab1:
     # your existing chart code
     # your KPI code
-    
 
-# -------------------------------------
-# Historical Price Chart
-# -------------------------------------
+    # -------------------------------------
+    # Historical Price Chart
+    # -------------------------------------
 
     st.subheader("📈 Historical Closing Price Trend")
 
-# Convert pandas timestamps to python date
+    # Convert pandas timestamps to python date
     min_date = data["Date"].min().date()
     max_date = data["Date"].max().date()
 
-# Slider for date range
+    # Slider for date range
     start_date, end_date = st.slider(
         "Select Date Range",
         min_value=min_date,
         max_value=max_date,
-        value=(min_date, max_date)
+        value=(min_date, max_date),
     )
 
-# Filter data based on slider
-    filtered_data = data[(data["Date"] >= pd.to_datetime(start_date)) & 
-                        (data["Date"] <= pd.to_datetime(end_date))]
+    # Filter data based on slider
+    filtered_data = data[
+        (data["Date"] >= pd.to_datetime(start_date))
+        & (data["Date"] <= pd.to_datetime(end_date))
+    ]
     # ✅ Store globally
     st.session_state["filtered_data"] = filtered_data
-# -------------------------------------
-# KPI Cards (Dynamic based on filter)
-# -------------------------------------
+    # -------------------------------------
+    # KPI Cards (Dynamic based on filter)
+    # -------------------------------------
 
     st.subheader("📊 Key Stock Insights")
 
@@ -187,39 +307,39 @@ with tab1:
     col3.metric("📊 Average Price", f"₹ {avg_price:.2f}")
     col4.metric("🗓️ Data Points", total_days)
 
-# Plot filtered data
+    # Plot filtered data
     fig = px.line(
         filtered_data,
         x="Date",
         y="Close",
         title="Yes Bank Historical Closing Prices",
-        labels={
-            "Date": "Date",
-            "Close": "Closing Price (₹)"
-        }
+        labels={"Date": "Date", "Close": "Closing Price (₹)"},
     )
 
     fig.update_layout(
-        xaxis_title="Date",
-        yaxis_title="Closing Price (₹)",
-        hovermode="x unified"
+        xaxis_title="Date", yaxis_title="Closing Price (₹)", hovermode="x unified"
     )
 
     st.plotly_chart(fig, use_container_width=True)
 
+# -------------------------------------
+# 🔮 TAB 2
+# -------------------------------------
 
 with tab2:
     # inputs
     # prediction logic
-# -------------------------------------
-# User Inputs
-# -------------------------------------
-    st.write("NOTE: Stock prices below are suggested based on the history of Stock Prices for Yes Bank. " \
-            "Enter manual stock details below:")
+    # -------------------------------------
+    # User Inputs
+    # -------------------------------------
+    st.write(
+        "NOTE: Stock prices below are suggested based on the history of Stock Prices for Yes Bank. "
+        "Enter manual stock details below:"
+    )
     # Get filtered data
     filtered_data = st.session_state.get("filtered_data", data)
 
-# Compute dynamic values
+    # Compute dynamic values
     min_open = float(filtered_data["Open"].min())
     max_open = float(filtered_data["Open"].max())
 
@@ -229,61 +349,78 @@ with tab2:
     min_low = float(filtered_data["Low"].min())
     max_low = float(filtered_data["Low"].max())
 
-# Inputs with dynamic defaults
+    # Inputs with dynamic defaults
     open_price = st.number_input(
-        "Open Price:",
-        min_value=min_open,
-        max_value=max_open,
-        value=min_open
+        "Open Price:", min_value=min_open, max_value=max_open, value=min_open
     )
 
     high_price = st.number_input(
-        "High Price:",
-        min_value=min_high,
-        max_value=max_high,
-        value=max_high
+        "High Price:", min_value=min_high, max_value=max_high, value=max_high
     )
 
     low_price = st.number_input(
-        "Low Price:",
-        min_value=min_low,
-        max_value=max_low,
-        value=min_low
+        "Low Price:", min_value=min_low, max_value=max_low, value=min_low
     )
 
-# -------------------------------------
-# Prediction
-# -------------------------------------
+    # -------------------------------------
+    # Prediction
+    # -------------------------------------
 
+    # if st.button("Predict", key="predict_button_1"):
+
+    #     unseen_data = pd.DataFrame({
+    #             "Open": [open_price],
+    #             "High": [high_price],
+    #             "Low": [low_price]
+    #     })
+
+    #     unseen_data_scaled = scaler.transform(unseen_data)
+
+    #     prediction = loaded_model.predict(unseen_data_scaled)[0]
+    #     if st.button("Save Prediction", key="predict_button_2"):
+    #     # ✅ Store for AI usage
+    #         st.session_state["latest_prediction"] = prediction
+    #         st.session_state["latest_features"] = {
+    #             "Open": open_price,
+    #             "High": high_price,
+    #             "Low": low_price
+    #         }
+
+    #     # ✅ Save prediction to history
+    #     st.session_state.prediction_history.append({
+    #         "Open": open_price,
+    #         "High": high_price,
+    #         "Low": low_price,
+    #         "Predicted Close": round(float(prediction), 2)
+    #     })
     if st.button("Predict", key="predict_button_1"):
 
-        unseen_data = pd.DataFrame({
-                "Open": [open_price],
-                "High": [high_price],
-                "Low": [low_price]
-        })
+        unseen_data = pd.DataFrame(
+            {"Open": [open_price], "High": [high_price], "Low": [low_price]}
+        )
 
         unseen_data_scaled = scaler.transform(unseen_data)
-
         prediction = loaded_model.predict(unseen_data_scaled)[0]
-        if st.button("Save Prediction", key="predict_button_2"):
-        # ✅ Store for AI usage
-            st.session_state["latest_prediction"] = prediction
-            st.session_state["latest_features"] = {
-                "Open": open_price,
-                "High": high_price,
-                "Low": low_price
-            }
 
-        # ✅ Save prediction to history
-        st.session_state.prediction_history.append({
+        # ✅ Store for AI
+        st.session_state["latest_prediction"] = prediction
+        st.session_state["latest_features"] = {
             "Open": open_price,
             "High": high_price,
             "Low": low_price,
-            "Predicted Close": round(float(prediction), 2)
-        })
+        }
 
-    # ✅ Show Result
+        # ✅ Save history
+        st.session_state.prediction_history.append(
+            {
+                "Open": open_price,
+                "High": high_price,
+                "Low": low_price,
+                "Predicted Close": round(float(prediction), 2),
+            }
+        )
+
+        # ✅ Show Result
         st.subheader("Prediction Result")
         st.success(f"Predicted Closing Price: ₹ {prediction:.2f}")
 
@@ -292,74 +429,147 @@ with tab2:
             insight = get_ai_response(
                 "Explain this prediction",
                 st.session_state["latest_prediction"],
-                st.session_state["latest_features"]
+                st.session_state["latest_features"],
             )
 
             st.info(f"💡 AI Insight:\n\n{insight}")
-
+# -------------------------------------
+# 🤖 TAB 3
+# -------------------------------------
 
 with tab3:
 
-    st.subheader("🤖 AI Copilot")
-
-    if st.session_state.prediction_history:
-
-        history_df = pd.DataFrame(st.session_state.prediction_history)
-
-        history_df["label"] = history_df.apply(
-            lambda row: f"Open: {row['Open']} | High: {row['High']} | Low: {row['Low']} → Close: {row['Predicted Close']}",
-            axis=1
-        )
-
-        selected_index = st.selectbox(
-            "Select a prediction to analyze:",
-            options=history_df.index,
-            format_func=lambda x: history_df.loc[x, "label"]
-        )
-
-        selected_row = history_df.loc[selected_index]
-
-        prediction = selected_row["Predicted Close"]
-        features = {
-            "Open": selected_row["Open"],
-            "High": selected_row["High"],
-            "Low": selected_row["Low"]
-        }
-
-        # ✅ SAFE ID (exists here)
-        prediction_id = str(selected_index)
-
-        st.success(f"Selected Prediction: ₹ {prediction:.2f}")
-
+    # 🔘 Toggle Right Panel
+    if st.button("📂 Toggle Chat Panel"):
+        st.session_state.show_right_sidebar = not st.session_state.show_right_sidebar
+        st.rerun()
+    if not st.session_state.show_right_sidebar:
+        st.info("Click above to open chat history")
+    # Layout
+    if st.session_state.show_right_sidebar:
+        col1, col2 = st.columns([2.5, 1.5])
     else:
-        st.info("No prediction available yet.")
+        col1, col2 = st.columns([1, 0.001])
 
-        prediction = "N/A"
-        features = "N/A"
+    # =====================================
+    # LEFT → MAIN CHAT
+    # =====================================
+    with col1:
 
-        # ✅ DEFAULT ID (VERY IMPORTANT)
-        prediction_id = "default"
+        st.markdown('<div class="chat-wrapper">', unsafe_allow_html=True)
 
-    # -------------------------------------
-    # Chat Memory Per Prediction
-    # -------------------------------------
+        # ---------------------------
+        # 📊 Prediction Selector
+        # ---------------------------
+        if st.session_state.prediction_history:
 
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = {}
+            df = pd.DataFrame(st.session_state.prediction_history)
+            labels = [f"Prediction-{i+1}" for i in range(len(df))]
 
-    if prediction_id not in st.session_state.chat_history:
-        st.session_state.chat_history[prediction_id] = []
+            selected = st.selectbox("Select Prediction", labels)
+            idx = labels.index(selected)
 
-    user_input = st.chat_input("Ask anything about stock or prediction...")
+            row = df.iloc[idx]
+
+            prediction = row["Predicted Close"]
+            features = {
+                "Open": float(row["Open"]),
+                "High": float(row["High"]),
+                "Low": float(row["Low"]),
+            }
+
+            prediction_id = f"prediction_{idx}"
+            st.session_state["active_prediction_id"] = prediction_id
+
+            st.success(f"{selected}: ₹ {prediction:.2f}")
+
+        else:
+            st.info("No predictions yet")
+            prediction, features, prediction_id = "N/A", {}, "default"
+
+        # ---------------------------
+        # 🧠 Thread Management
+        # ---------------------------
+        if prediction_id not in st.session_state.chat_history:
+            st.session_state.chat_history[prediction_id] = {"threads": []}
+
+        threads = st.session_state.chat_history[prediction_id]["threads"]
+
+        if not threads:
+            threads.append({"messages": []})
+
+        current_thread = threads[-1]
+
+        # ---------------------------
+        # 💬 CHAT MESSAGES (SCROLLABLE)
+        # ---------------------------
+        st.markdown('<div class="chat-scroll">', unsafe_allow_html=True)
+
+        for role, msg in current_thread["messages"]:
+            with st.chat_message(role):
+                st.write(msg)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # =====================================
+    # RIGHT → CHAT HISTORY
+    # =====================================
+    with col2:
+
+        if st.session_state.show_right_sidebar:
+
+            st.markdown("### 💬 Chat History")
+
+            threads = st.session_state.chat_history[prediction_id]["threads"]
+
+            if st.button("➕ New Chat", key=f"new_chat_{prediction_id}"):
+                threads.append({"messages": []})
+                st.rerun()
+
+            if threads:
+                for i, thread in enumerate(reversed(threads)):
+
+                    first_question = (
+                        thread["messages"][0][1]
+                        if thread["messages"]
+                        else "Empty Chat"
+                    )
+
+                    if st.button(
+                        f"🧵 {first_question[:30]}...",
+                        key=f"thread_{prediction_id}_{i}",
+                    ):
+
+                        selected_thread = threads[-(i + 1)]
+                        threads.remove(selected_thread)
+                        threads.append(selected_thread)
+
+                        st.rerun()
+            else:
+                st.write("No chat history yet.")
+
+       
+    # =====================================
+    # 💬 CHAT INPUT (OUTSIDE COLUMNS)
+    # =====================================
+    user_input = st.chat_input("Ask about prediction...")
 
     if user_input:
 
-        response = get_ai_response(user_input, prediction, features)
+        current_thread = st.session_state.chat_history[
+            st.session_state["active_prediction_id"]
+        ]["threads"][-1]
 
-        st.session_state.chat_history[prediction_id].append(("user", user_input))
-        st.session_state.chat_history[prediction_id].append(("ai", response))
+        response = get_ai_response(
+            user_input,
+            prediction,
+            features,
+            current_thread["messages"],
+        )
 
-    # ✅ Render only selected prediction chat
-    for role, msg in st.session_state.chat_history[prediction_id]:
-        with st.chat_message("user" if role == "user" else "assistant"):
-            st.write(msg)
+        current_thread["messages"].append(("user", user_input))
+        current_thread["messages"].append(("assistant", response))
+
+        st.rerun()
