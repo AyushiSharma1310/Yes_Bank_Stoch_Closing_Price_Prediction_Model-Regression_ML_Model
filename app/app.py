@@ -413,7 +413,10 @@ with tab2:
         # 📊 GRAPH (SAFE NOW ✅)
         # -------------------------------------
         st.subheader("📊 Prediction vs Historical Data")
-
+        st.warning(
+            "⚠️ This prediction is based on historical data upto November 2020. "
+            "It may not reflect real-time market conditions or external factors."
+        )
         fig = px.line(
             filtered_data,
             x="Date",
@@ -421,13 +424,13 @@ with tab2:
             title="Historical Close Price vs Prediction",
         )
 
-        latest_date = filtered_data["Date"].max()
+        latest_date = pd.Timestamp.now().date() + pd.Timedelta(days=1)
 
         fig.add_scatter(
             x=[latest_date],
             y=[prediction],
             mode="markers",
-            name="Predicted Value",
+            name="Prediction",
             marker=dict(size=12, symbol="diamond"),
         )
 
