@@ -251,7 +251,7 @@ if "show_right_sidebar" not in st.session_state:
     st.session_state.show_right_sidebar = False
 
 
-st.title("Yes-Bank Stock Closing Price Prediction App")
+st.title("Yes-Bank OHLC Price Prediction App")
 tab1, tab2, tab3 = st.tabs(
     ["📊 Dashboard", "🔮 Prediction", "🤖 Prediction AI Support"]
 )
@@ -327,8 +327,6 @@ with tab1:
 # -------------------------------------
 
 with tab2:
-    # inputs
-    # prediction logic
     # -------------------------------------
     # User Inputs
     # -------------------------------------
@@ -336,10 +334,10 @@ with tab2:
         "NOTE: Stock prices below are suggested based on the history of Stock Prices for Yes Bank. "
         "Enter manual stock details below:"
     )
-    # Get filtered data
+
     filtered_data = st.session_state.get("filtered_data", data)
 
-    # Compute dynamic values
+    # Dynamic ranges
     min_open = float(filtered_data["Open"].min())
     max_open = float(filtered_data["Open"].max())
 
@@ -349,7 +347,7 @@ with tab2:
     min_low = float(filtered_data["Low"].min())
     max_low = float(filtered_data["Low"].max())
 
-    # Inputs with dynamic defaults
+    # Inputs
     open_price = st.number_input(
         "Open Price:", min_value=min_open, max_value=max_open, value=min_open
     )
@@ -363,36 +361,8 @@ with tab2:
     )
 
     # -------------------------------------
-    # Prediction
+    # 🔮 Prediction Button
     # -------------------------------------
-
-    # if st.button("Predict", key="predict_button_1"):
-
-    #     unseen_data = pd.DataFrame({
-    #             "Open": [open_price],
-    #             "High": [high_price],
-    #             "Low": [low_price]
-    #     })
-
-    #     unseen_data_scaled = scaler.transform(unseen_data)
-
-    #     prediction = loaded_model.predict(unseen_data_scaled)[0]
-    #     if st.button("Save Prediction", key="predict_button_2"):
-    #     # ✅ Store for AI usage
-    #         st.session_state["latest_prediction"] = prediction
-    #         st.session_state["latest_features"] = {
-    #             "Open": open_price,
-    #             "High": high_price,
-    #             "Low": low_price
-    #         }
-
-    #     # ✅ Save prediction to history
-    #     st.session_state.prediction_history.append({
-    #         "Open": open_price,
-    #         "High": high_price,
-    #         "Low": low_price,
-    #         "Predicted Close": round(float(prediction), 2)
-    #     })
     if st.button("Predict", key="predict_button_1"):
 
         unseen_data = pd.DataFrame(
@@ -402,7 +372,7 @@ with tab2:
         unseen_data_scaled = scaler.transform(unseen_data)
         prediction = loaded_model.predict(unseen_data_scaled)[0]
 
-        # ✅ Store for AI
+        # ✅ Store for persistence
         st.session_state["latest_prediction"] = prediction
         st.session_state["latest_features"] = {
             "Open": open_price,
@@ -420,19 +390,58 @@ with tab2:
             }
         )
 
-        # ✅ Show Result
+    # -------------------------------------
+    # ✅ SHOW RESULT (PERSISTENT)
+    # -------------------------------------
+    if "latest_prediction" in st.session_state:
+
+        prediction = st.session_state["latest_prediction"]
+
         st.subheader("Prediction Result")
         st.success(f"Predicted Closing Price: ₹ {prediction:.2f}")
 
-        if "latest_prediction" in st.session_state:
+        # 🤖 AI Insight
+        insight = get_ai_response(
+            "Explain this prediction",
+            prediction,
+            st.session_state["latest_features"],
+        )
 
-            insight = get_ai_response(
-                "Explain this prediction",
-                st.session_state["latest_prediction"],
-                st.session_state["latest_features"],
-            )
+        st.info(f"💡 AI Insight:\n\n{insight}")
 
-            st.info(f"💡 AI Insight:\n\n{insight}")
+        # -------------------------------------
+        # 📊 GRAPH (SAFE NOW ✅)
+        # -------------------------------------
+        st.subheader("📊 Prediction vs Historical Data")
+
+        fig = px.line(
+            filtered_data,
+            x="Date",
+            y="Close",
+            title="Historical Close Price vs Prediction",
+        )
+
+        latest_date = filtered_data["Date"].max()
+
+        fig.add_scatter(
+            x=[latest_date],
+            y=[prediction],
+            mode="markers",
+            name="Predicted Value",
+            marker=dict(size=12, symbol="diamond"),
+        )
+
+        fig.add_hline(
+            y=prediction,
+            line_dash="dash",
+            annotation_text="Predicted Price",
+            annotation_position="top right",
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    else:
+        st.info("👆 Make a prediction to see results and graph")
 # -------------------------------------
 # 🤖 TAB 3
 # -------------------------------------
