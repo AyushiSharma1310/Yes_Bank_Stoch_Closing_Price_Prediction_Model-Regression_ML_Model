@@ -12,7 +12,8 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 # 🎨 CSS (FIXED)
 # -------------------------------------
 
-st.markdown("""
+st.markdown(
+    """
 <style>
 
 /* ================================
@@ -67,7 +68,9 @@ div[data-testid="column"] [data-testid="stChatInput"] {
 }
 
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
 # -------------------------------------
@@ -452,7 +455,7 @@ with tab2:
 with tab3:
 
     # 🔘 Toggle Right Panel
-    if st.button("📂 Toggle Chat Panel"):
+    if st.button("📂 Chat History", key="toggle_sidebar_btn"):
         st.session_state.show_right_sidebar = not st.session_state.show_right_sidebar
         st.rerun()
     if not st.session_state.show_right_sidebar:
@@ -521,9 +524,9 @@ with tab3:
             with st.chat_message(role):
                 st.write(msg)
 
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # =====================================
     # RIGHT → CHAT HISTORY
@@ -546,7 +549,7 @@ with tab3:
                     first_question = (
                         thread["messages"][0][1]
                         if thread["messages"]
-                        else "Empty Chat"
+                        else "No chat here yet"
                     )
 
                     if st.button(
@@ -562,7 +565,6 @@ with tab3:
             else:
                 st.write("No chat history yet.")
 
-       
     # =====================================
     # 💬 CHAT INPUT (OUTSIDE COLUMNS)
     # =====================================
