@@ -254,7 +254,7 @@ if "show_right_sidebar" not in st.session_state:
     st.session_state.show_right_sidebar = False
 
 
-st.title("Yes-Bank OHLC Price Prediction App")
+st.title("Yes-Bank Closing Price Predictor")
 tab1, tab2, tab3 = st.tabs(
     ["📊 Dashboard", "🔮 Prediction", "🤖 Prediction AI Support"]
 )
