@@ -1,7 +1,7 @@
 # Yes_Bank_Stock_Closing_Price_Prediction_Model-Regression_ML_Model:
 
 - Find the ipynb file named Yes_Bank_Regression_Model.ipynb - the main python Machine Learning model file.
-  
+  NOTE: The file is completely build using VS Code and not Google Colab.
 
   
 
